@@ -1,4 +1,7 @@
-use tokio::{net::TcpListener, io::{AsyncReadExt, AsyncWriteExt}};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    net::TcpListener,
+};
 
 #[tokio::main]
 async fn main() {
@@ -6,16 +9,22 @@ async fn main() {
 
     let (mut socket, _) = listener.accept().await.unwrap();
 
+    let (reader, mut writer) = socket.split();
+
+    let mut buf_reader = BufReader::new(reader);
+    let mut line = String::new();
 
     loop {
-        let mut buffer = [0u8; 1024];
-        let bytes_read = socket.read(&mut buffer).await.unwrap();
+        let bytes_read = buf_reader.read_line(&mut line).await.unwrap();
 
-        println!("messge received: ");
-        for c in 0..bytes_read {
-            print!("{}", buffer[c] as char);
+        // client disconnected
+        if bytes_read == 0 {
+            break;
         }
 
-        socket.write_all(&buffer[..bytes_read]).await.unwrap();
+        println!("messge: {}", line);
+
+        writer.write_all(line.as_bytes()).await.unwrap();
+        line.clear();
     }
 }

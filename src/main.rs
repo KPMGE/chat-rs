@@ -1,14 +1,17 @@
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    net::TcpListener,
+    net::TcpListener, sync::broadcast,
 };
 
 #[tokio::main]
 async fn main() {
     let listener = TcpListener::bind("localhost:8080").await.unwrap();
+    let (tx, _) = broadcast::channel::<String>(10);
 
     loop {
         let (mut socket, _) = listener.accept().await.unwrap();
+        let tx = tx.clone();
+        let mut rx = tx.subscribe(); 
 
         tokio::spawn(async move {
             let (reader, mut writer) = socket.split();
@@ -23,9 +26,11 @@ async fn main() {
                     break;
                 }
 
-                println!("messge: {}", line);
+                tx.send(line.clone()).unwrap();
 
-                writer.write_all(line.as_bytes()).await.unwrap();
+                let msg = rx.recv().await.unwrap();
+
+                writer.write_all(msg.as_bytes()).await.unwrap();
                 line.clear();
             }
         });
